@@ -106,3 +106,6 @@ liarclient-checkpoints1/
 liarclient-checkpoints2/
 logs/
 rmiservers/
+scnIndexMetaFile*
+.idea/
+**/out

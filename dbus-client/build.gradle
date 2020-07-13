@@ -1,0 +1,23 @@
+plugins {
+    id 'java'
+}
+
+group 'com.ronfton'
+version '1.0'
+
+sourceCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile project(':databus-client:databus-client-api')
+    compile project(':databus-client:databus-client-common')
+    compile project(':databus-client:databus-client-http')
+
+    compile externalDependency.commonsCli
+    compile externalDependency.log4j
+
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+}
