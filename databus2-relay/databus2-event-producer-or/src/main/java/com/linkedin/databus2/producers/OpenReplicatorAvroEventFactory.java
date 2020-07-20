@@ -2,10 +2,13 @@ package com.linkedin.databus2.producers;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.regex.Pattern;
 
+import com.linkedin.databus2.producers.ds.DbChangeV2Entry;
+import com.linkedin.databus2.schemas.VersionedSchema;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
@@ -104,8 +107,12 @@ public class OpenReplicatorAvroEventFactory
 
     //Get the md5 for the schema
     SchemaId schemaId = SchemaId.createWithMd5(changeEntry.getSchema());
-
-    byte[] payload = serializeEvent(changeEntry.getRecord());
+    byte[] payload;
+    if (changeEntry instanceof DbChangeV2Entry) {
+      payload = serializeEvent(Arrays.asList(changeEntry.getRecord(), ((DbChangeV2Entry)changeEntry).getBeforedRecord()), changeEntry.getSchema());
+    } else {
+      payload = serializeEvent(changeEntry.getRecord());
+    }
 
     DbusEventInfo eventInfo = new DbusEventInfo(changeEntry.getOpCode(),
                                                 changeEntry.getScn(),
@@ -144,6 +151,33 @@ public class OpenReplicatorAvroEventFactory
     {
       // Avro likes to throw RuntimeExceptions instead of checked exceptions when serialization fails.
       _log.error("Exception for record: " + record + " with schema: " + record.getSchema().getFullName());
+      throw new EventCreationException("Failed to serialize the Avro GenericRecord", ex);
+    }
+
+    return serializedValue;
+  }
+
+  protected byte[] serializeEvent(List<GenericRecord> records, Schema schema)
+          throws EventCreationException
+  {
+    // Serialize the row
+    byte[] serializedValue;
+    try
+    {
+      ByteArrayOutputStream bos = new ByteArrayOutputStream();
+      Encoder encoder = new BinaryEncoder(bos);
+      GenericDatumWriter<List<GenericRecord>> writer = new GenericDatumWriter<List<GenericRecord>>(schema);
+      writer.write(records, encoder);
+      serializedValue = bos.toByteArray();
+    }
+    catch(IOException ex)
+    {
+      throw new EventCreationException("Failed to serialize the Avro GenericRecord", ex);
+    }
+    catch(RuntimeException ex)
+    {
+      // Avro likes to throw RuntimeExceptions instead of checked exceptions when serialization fails.
+      _log.error("Exception for record: " + records + " with schema: " + schema.getFullName());
       throw new EventCreationException("Failed to serialize the Avro GenericRecord", ex);
     }
 

@@ -107,5 +107,6 @@ liarclient-checkpoints2/
 logs/
 rmiservers/
 scnIndexMetaFile*
+containerPortNum*
 .idea/
 **/out

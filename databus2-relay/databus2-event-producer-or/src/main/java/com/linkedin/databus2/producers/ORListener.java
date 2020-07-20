@@ -3,15 +3,13 @@ package com.linkedin.databus2.producers;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
+import com.linkedin.databus2.producers.ds.*;
 import org.apache.avro.Schema;
 import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.GenericData;
@@ -46,11 +44,6 @@ import com.linkedin.databus.core.DatabusRuntimeException;
 import com.linkedin.databus.core.DatabusThreadBase;
 import com.linkedin.databus.core.DbusOpcode;
 import com.linkedin.databus2.core.DatabusException;
-import com.linkedin.databus2.producers.ds.DbChangeEntry;
-import com.linkedin.databus2.producers.ds.KeyPair;
-import com.linkedin.databus2.producers.ds.PerSourceTransaction;
-import com.linkedin.databus2.producers.ds.PrimaryKeySchema;
-import com.linkedin.databus2.producers.ds.Transaction;
 import com.linkedin.databus2.producers.util.Or2AvroConvert;
 import com.linkedin.databus2.schemas.NoSuchSchemaException;
 import com.linkedin.databus2.schemas.SchemaRegistryService;
@@ -316,9 +309,10 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
       Row r = pr.getAfter();
       lr.add(r);
     }
-    if (lr.size() > 0) {
-      LOG.info("UPDATE " + _curSourceName + ": " + lr.size());
-      frameAvroRecord(ure.getTableId(), ure.getHeader(), lr, DbusOpcode.UPSERT);
+    if (lp.size() > 0) {
+      LOG.info("UPDATE " + _curSourceName + ": " + lp.size());
+      //frameAvroRecord(ure.getTableId(), ure.getHeader(), lr, DbusOpcode.UPSERT);
+      frameAvroRecord1(ure.getTableId(), ure.getHeader(), lp, DbusOpcode.UPSERT);
     }
   }
 
@@ -377,21 +371,64 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
     }
   }
 
+  private void frameAvroRecord1(long tableId, BinlogEventV4Header bh, List<Pair<Row>> lp, final DbusOpcode doc)
+  {
+    try
+    {
+      final long timestampInNanos = bh.getTimestamp() * 1000000L;
+      final long scn = scn(_currFileNum, (int)bh.getPosition());
+      final boolean isReplicated = false;
+      final TableMapEvent tme = _tableMapEvents.get(tableId);
+      String tableName = tme.getDatabaseName().toString().toLowerCase() + "." + tme.getTableName().toString().toLowerCase();
+      VersionedSchema vs = _schemaRegistryService.fetchLatestVersionedSchemaBySourceName(_tableUriToSrcNameMap.get(tableName));
+      Schema schema = vs.getSchema();
+
+      if ( _log.isDebugEnabled())
+        _log.debug("File Number :" + _currFileNum + ", Position :" + (int)bh.getPosition() + ", SCN =" + scn);
+
+      for (Pair<Row> rowPair : lp)
+      {
+        List<Column> bcl = rowPair.getBefore().getColumns();
+        List<Column> acl = rowPair.getAfter().getColumns();
+
+        GenericRecord agr = new GenericData.Record(schema);
+        generateAvroEvent(vs, acl, agr);
+        List<KeyPair> kps = generateKeyPair(agr, vs);
+
+        GenericRecord bgr = new GenericData.Record(schema);
+        generateAvroEvent(vs, bcl, bgr);
+        Schema arraySchema = Schema.createArray(schema);
+        DbChangeV2Entry bdb = new DbChangeV2Entry(scn, timestampInNanos, bgr, agr, doc, isReplicated, arraySchema, kps);
+        _transaction.getPerSourceTransaction(_tableUriToSrcIdMap.get(tableName)).mergeDbChangeEntrySet(bdb);
+      }
+    } catch (NoSuchSchemaException ne)
+    {
+      throw new DatabusRuntimeException(ne);
+    } catch (DatabusException de)
+    {
+      throw new DatabusRuntimeException(de);
+    }
+  }
+
   private List<KeyPair> generateKeyPair(GenericRecord gr, VersionedSchema versionedSchema)
       throws DatabusException
   {
     Object o = null;
     Schema.Type st = null;
     List<Field> pkFieldList = versionedSchema.getPkFieldList();
+    String pkFieldName = SchemaHelper.getMetaField(versionedSchema.getSchema(), "pk");
+
+    Schema schema = versionedSchema.getSchema();
+    List<Schema.Field> fields = schema.getFields();
+
     if(pkFieldList.isEmpty())
     {
-      String pkFieldName = SchemaHelper.getMetaField(versionedSchema.getSchema(), "pk");
 	  if (pkFieldName == null)
 	  {
 		throw new DatabusException("No primary key specified in the schema");
 	  }
 	  PrimaryKeySchema pkSchema = new PrimaryKeySchema(pkFieldName);
-	  List<Schema.Field> fields = versionedSchema.getSchema().getFields();
+
 	  for (int i = 0; i < fields.size(); i++)
 	  {
 		Schema.Field field = fields.get(i);
@@ -411,9 +448,8 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
     }
     if (kpl == null || kpl.isEmpty())
     {
-      String pkFieldName = SchemaHelper.getMetaField(versionedSchema.getSchema(), "pk");
       StringBuilder sb = new StringBuilder();
-      for (Schema.Field f : versionedSchema.getSchema().getFields())
+      for (Schema.Field f : fields)
       {
         sb.append(f.name()).append(",");
       }
