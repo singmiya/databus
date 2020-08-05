@@ -279,6 +279,7 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
   /** Acts as a barrier for all outstanding calls in the call queue */
   public ConsumerCallbackResult flushCallQueue(long curTime)
   {
+    _log.info("####################### flushCallQueue #######################");
     ConsumerCallbackResult result = ConsumerCallbackResult.SUCCESS;
     if (0 >= curTime) curTime = System.nanoTime();
 
@@ -340,6 +341,7 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
   @Override
   public ConsumerCallbackResult onCheckpoint(SCN checkpointScn)
   {
+    _log.info("/\\/\\/\\/\\/\\/\\/\\/\\/ onCheckpoint /\\/\\/\\/\\/\\/\\/\\/\\/");
     long curNanos = System.nanoTime();
     for (DatabusV2ConsumerRegistration consumerReg: _registrations)
     {
@@ -369,6 +371,7 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
   @Override
   public ConsumerCallbackResult onDataEvent(DbusEvent e, DbusEventDecoder eventDecoder)
   {
+    _log.info("/\\/\\/\\/\\/\\/\\/\\/\\/ onDataEvent /\\/\\/\\/\\/\\/\\/\\/\\/");
     boolean debugEnabled = _log.isDebugEnabled();
 
     long curNanos = System.nanoTime();
@@ -423,6 +426,7 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
   @Override
   public ConsumerCallbackResult onEndDataEventSequence(SCN endScn)
   {
+    _log.info("/\\/\\/\\/\\/\\/\\/\\/\\/ onEndDataEventSequence /\\/\\/\\/\\/\\/\\/\\/\\/");
     long curNanos = System.nanoTime();
     for (DatabusV2ConsumerRegistration consumerReg: _registrations)
     {
@@ -452,6 +456,7 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
   @Override
   public ConsumerCallbackResult onEndSource(String source, Schema sourceSchema)
   {
+    _log.info("/\\/\\/\\/\\/\\/\\/\\/\\/ onEndSource /\\/\\/\\/\\/\\/\\/\\/\\/");
     long curNanos = System.nanoTime();
     for (DatabusV2ConsumerRegistration consumerReg: _registrations)
     {
@@ -481,6 +486,7 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
   @Override
   public ConsumerCallbackResult onRollback(SCN startScn)
   {
+    _log.info("/\\/\\/\\/\\/\\/\\/\\/\\/ onRollback /\\/\\/\\/\\/\\/\\/\\/\\/");
     long curNanos = System.nanoTime();
     for (DatabusV2ConsumerRegistration consumerReg: _registrations)
     {
@@ -510,6 +516,7 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
   @Override
   public ConsumerCallbackResult onStartDataEventSequence(SCN startScn)
   {
+    _log.info("/\\/\\/\\/\\/\\/\\/\\/\\/ onStartDataEventSequence /\\/\\/\\/\\/\\/\\/\\/\\/");
     long curNanos = System.nanoTime();
     for (DatabusV2ConsumerRegistration consumerReg: _registrations)
     {
@@ -540,6 +547,7 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
   @Override
   public ConsumerCallbackResult onStartSource(String source, Schema sourceSchema)
   {
+    _log.info("/\\/\\/\\/\\/\\/\\/\\/\\/ onStartSource /\\/\\/\\/\\/\\/\\/\\/\\/");
     long curNanos = System.nanoTime();
     for (DatabusV2ConsumerRegistration consumerReg: _registrations)
     {
@@ -570,6 +578,7 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
   @Override
   public ConsumerCallbackResult onStartConsumption()
   {
+    _log.info("/\\/\\/\\/\\/\\/\\/\\/\\/ onStartConsumption /\\/\\/\\/\\/\\/\\/\\/\\/");
     long curNanos = System.nanoTime();
     for (DatabusV2ConsumerRegistration consumerReg: _registrations)
     {
@@ -599,6 +608,7 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
   @Override
   public ConsumerCallbackResult onStopConsumption()
   {
+    _log.info("/\\/\\/\\/\\/\\/\\/\\/\\/ onStopConsumption /\\/\\/\\/\\/\\/\\/\\/\\/");
     long curNanos = System.nanoTime();
     for (DatabusV2ConsumerRegistration consumerReg: _registrations)
     {
@@ -639,6 +649,7 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
   @Override
   public ConsumerCallbackResult onError(Throwable err)
   {
+    _log.info("/\\/\\/\\/\\/\\/\\/\\/\\/ onError /\\/\\/\\/\\/\\/\\/\\/\\/");
     long curNanos = System.nanoTime();
     for (DatabusV2ConsumerRegistration consumerReg: _registrations)
     {

@@ -57,6 +57,9 @@ public final class DbusConstants {
     public final static int DONT_USE_METADATA_SCHEMA = 0;
     public final static int USE_LATEST_METADATA_SCHEMA = -1;
 
+    // DbusEventInfo中的playload序列化时：如果要序列化的对象是数组，则在byte[]前添加前缀
+    public final static byte[] ARR_PREFIX = {0x00, 0x01, 0x02, 0x03};
+
     public static String getAppName()
     {
         return System.getProperty(APP_NAME, UNKNOWN_APP_NAME);

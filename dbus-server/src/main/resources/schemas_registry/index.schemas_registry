@@ -1,2 +1,4 @@
 com.linkedin.events.example.person.Person.1.avsc
 com.linkedin.events.example.or_test.Person.1.avsc
+
+com.linkedin.events.example.or_test.Role.1.avsc

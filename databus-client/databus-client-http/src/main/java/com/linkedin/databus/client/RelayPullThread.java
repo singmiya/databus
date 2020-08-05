@@ -366,6 +366,7 @@ public class RelayPullThread extends BasePullThread
 
   protected void doPickRelay(ConnectionState curState)
   {
+    _log.info("===========================doPickRelay===========================");
     int serversNum = _servers.size();
     if (0 == serversNum)
     {
@@ -474,6 +475,7 @@ public class RelayPullThread extends BasePullThread
 
   protected void doRequestSources(final ConnectionState curState)
   {
+    _log.info("===========================doRequestSources===========================");
     if (null != _relayCallsStats) _relayCallsStats.registerSourcesCall();
     _log.debug("Sending /sources request");
     curState.switchToSourcesRequestSent();
@@ -516,7 +518,7 @@ public class RelayPullThread extends BasePullThread
 
   protected void doSourcesResponseSuccess(ConnectionState curState)
   {
-
+    _log.info("===========================doSourcesResponseSuccess===========================");
     mergeRelayCallsStats();
 
     Map<String, IdNamePair> sourceNameMap = curState.getSourcesNameMap();
@@ -585,6 +587,7 @@ public class RelayPullThread extends BasePullThread
 
   protected void doRequestRegister(ConnectionState curState)
   {
+    _log.info("===========================doRequestRegister===========================");
     if (null != _relayCallsStats) _relayCallsStats.registerRegisterCall(EMPTY_REGISTER_LIST);
     _log.debug("Sending /sources request");
     curState.swichToRegisterRequestSent();
@@ -594,6 +597,7 @@ public class RelayPullThread extends BasePullThread
 
   protected void doRegisterResponseSuccess(ConnectionState curState)
   {
+    _log.info("===========================doRegisterResponseSuccess===========================");
     boolean enqueueMessage = true;
     mergeRelayCallsStats();
 
@@ -717,6 +721,7 @@ public class RelayPullThread extends BasePullThread
 
   protected void doRequestStream(ConnectionState curState)
   {
+    _log.info("===========================doRequestStream===========================");
     boolean debugEnabled = _log.isDebugEnabled();
 
     if (debugEnabled) _log.debug("Checking for free space in buffer");
@@ -799,6 +804,7 @@ public class RelayPullThread extends BasePullThread
 
   protected void doReadDataEvents(ConnectionState curState)
   {
+    _log.info("===========================doReadDataEvents===========================");
     boolean debugEnabled = _log.isDebugEnabled();
     boolean enqueueMessage = true;
     try
@@ -941,6 +947,7 @@ public class RelayPullThread extends BasePullThread
 
   protected void doStreamResponseDone(ConnectionState curState)
   {
+    _log.info("===========================doStreamResponseDone===========================");
     Checkpoint cp = curState.getCheckpoint();
     if (_log.isDebugEnabled())
     {

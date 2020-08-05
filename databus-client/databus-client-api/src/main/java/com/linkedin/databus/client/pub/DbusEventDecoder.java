@@ -21,6 +21,7 @@ package com.linkedin.databus.client.pub;
 
 import java.nio.channels.WritableByteChannel;
 
+import org.apache.avro.generic.GenericContainer;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.specific.SpecificRecord;
 
@@ -67,7 +68,7 @@ public interface DbusEventDecoder
    *         deserialized data; this will be either <b>reuse</b> or the newly allocated object.
    */
   public GenericRecord getGenericRecord(DbusEvent e, GenericRecord reuse);
-
+  public GenericContainer getGenericContainer(DbusEvent e, GenericContainer reuse);
   /**
    * @param e DbusEvent
    * @return VersionedSchema object that can be used to look up the Avro Schema, sourceName, or version

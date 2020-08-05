@@ -27,8 +27,10 @@ import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.WritableByteChannel;
-
+import java.util.Arrays;
+import com.linkedin.databus.core.DbusConstants;
 import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericContainer;
 import org.apache.avro.generic.GenericDatumReader;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
@@ -80,9 +82,7 @@ public class DbusEventAvroDecoder implements DbusEventDecoder
     _metadataSchemaSet = metadataSchemaSet;
   }
 
-  @Override
-  public GenericRecord getGenericRecord(DbusEvent e, GenericRecord reuse)
-  {
+  private VersionedSchema getVersionedSchema(DbusEvent e) {
     byte[] md5 = new byte[16];
     e.schemaId(md5);
     SchemaId schemaId = new SchemaId(md5);
@@ -93,7 +93,10 @@ public class DbusEventAvroDecoder implements DbusEventDecoder
       LOG.error("Unable to find schema for id " + schemaId + "; event = " + e);
       throw new DatabusRuntimeException("No schema available to decode event " + e);
     }
+    return writerSchema;
+  }
 
+  private byte[] getValueBytes(DbusEvent e) {
     ByteBuffer valueBuffer = e.value();
 
     byte[] valueBytes = null;
@@ -106,7 +109,31 @@ public class DbusEventAvroDecoder implements DbusEventDecoder
       valueBytes = new byte[valueBuffer.remaining()];
       valueBuffer.get(valueBytes);
     }
+    return valueBytes;
+  }
 
+  @Override
+  public GenericContainer getGenericContainer(DbusEvent e, GenericContainer reuse)
+  {
+    VersionedSchema writerSchema = getVersionedSchema(e);
+
+    byte[] valueBytes = getValueBytes(e);
+
+    int pl = DbusConstants.ARR_PREFIX.length;
+    byte[] prefix = Arrays.copyOfRange(valueBytes, 0, pl);
+    if (Arrays.equals(DbusConstants.ARR_PREFIX, prefix)) {
+      Schema arraySchema = Schema.createArray(writerSchema.getSchema());
+      return getGenericRecordList(Arrays.copyOfRange(valueBytes, pl, valueBytes.length), arraySchema, reuse);
+    }
+
+    return getGenericRecord(valueBytes, writerSchema.getSchema(), (GenericRecord) reuse);
+  }
+
+  @Override
+  public GenericRecord getGenericRecord(DbusEvent e, GenericRecord reuse)
+  {
+    VersionedSchema writerSchema = getVersionedSchema(e);
+    byte[] valueBytes = getValueBytes(e);
     return getGenericRecord(valueBytes, writerSchema.getSchema(), reuse);
   }
 
@@ -140,6 +167,22 @@ public class DbusEventAvroDecoder implements DbusEventDecoder
     {
       binDecoder.set(DecoderFactory.defaultFactory().createBinaryDecoder(valueBytes, binDecoder.get()));
       GenericDatumReader<GenericRecord> reader = new GenericDatumReader<GenericRecord>(schema);
+      result = reader.read(reuse, binDecoder.get());
+      return result;
+    }
+    catch (Exception ex)  // IOException, ArrayIndexOutOfBoundsException, ...
+    {
+      LOG.error("getGenericRecord Avro error: " + ex.getMessage(), ex);
+    }
+    return result;
+  }
+
+  public GenericContainer getGenericRecordList(byte[] valueBytes, Schema schema, GenericContainer reuse) {
+    GenericContainer result = null;
+    try
+    {
+      binDecoder.set(DecoderFactory.defaultFactory().createBinaryDecoder(valueBytes, binDecoder.get()));
+      GenericDatumReader<GenericContainer> reader = new GenericDatumReader<GenericContainer>(schema);
       result = reader.read(reuse, binDecoder.get());
       return result;
     }

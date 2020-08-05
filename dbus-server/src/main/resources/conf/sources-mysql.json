@@ -10,6 +10,12 @@
         "name" : "com.linkedin.events.example.or_test.Person",
         "uri": "or_test.person",
         "partitionFunction" : "constant:1"
-         }
+         },
+        {
+            "id" : 41,
+            "name" : "com.linkedin.events.example.or_test.Role",
+            "uri": "or_test.role",
+            "partitionFunction" : "constant:1"
+        }
     ]
 }

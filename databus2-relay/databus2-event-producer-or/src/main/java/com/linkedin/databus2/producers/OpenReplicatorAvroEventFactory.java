@@ -109,6 +109,7 @@ public class OpenReplicatorAvroEventFactory
     SchemaId schemaId = SchemaId.createWithMd5(changeEntry.getSchema());
     byte[] payload;
     if (changeEntry instanceof DbChangeV2Entry) {
+      schemaId = SchemaId.createWithMd5(changeEntry.getSchema().getElementType());
       payload = serializeEvent(Arrays.asList(changeEntry.getRecord(), ((DbChangeV2Entry)changeEntry).getBeforedRecord()), changeEntry.getSchema());
     } else {
       payload = serializeEvent(changeEntry.getRecord());
@@ -165,6 +166,7 @@ public class OpenReplicatorAvroEventFactory
     try
     {
       ByteArrayOutputStream bos = new ByteArrayOutputStream();
+      bos.write(DbusConstants.ARR_PREFIX);
       Encoder encoder = new BinaryEncoder(bos);
       GenericDatumWriter<List<GenericRecord>> writer = new GenericDatumWriter<List<GenericRecord>>(schema);
       writer.write(records, encoder);

@@ -692,12 +692,14 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
         !checkForShutdownRequest() &&
         //exit the event processing loop if there are other queued notifications
         !hasMessages())
+    //region 1
     {
       DbusEventInternalReadable nextEvent = curState.getEventsIterator().next();
       _currentWindowSizeInBytes += nextEvent.size();
       if (traceEnabled) _log.trace("Got event:" + nextEvent);
       Long eventSrcId = (long)nextEvent.srcId();
       if (curState.isSCNRegress())
+      //region 2
       {
     	  SingleSourceSCN scn = new SingleSourceSCN(nextEvent.physicalPartitionId(),
     	                                            nextEvent.sequence());
@@ -707,17 +709,21 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
     	  curState.setSCNRegress(false);
     	  curState.switchToExpectEventWindow();
       }
+        //endregion
 
       if (null != getAsyncCallback().getStats())
         getAsyncCallback().getStats().registerWindowSeen(nextEvent.timestampInNanos(),
                                                          nextEvent.sequence());
 
       if (nextEvent.isControlMessage())
+      //region 2
       {
     	//control event
         if (nextEvent.isEndOfPeriodMarker())
+        //region 3
         {
           if (curState.isEventsSeen())
+          //region 4
           {
             if (null != curState.getCurrentSource())
             {
@@ -750,7 +756,9 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
               }
             }
           }
+          //endregion
           else
+          //region 4
           {
             //empty window
             success = true;
@@ -786,7 +794,9 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
                 _log.warn("EOP with scn=" + nextEvent.sequence());
             }
           }
+            //endregion
           if (success)
+          //region 4
           {
             curState.switchToExpectEventWindow();
             //we have recovered from the error  and it's not the dummy window
@@ -795,17 +805,23 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
             	if (! getStatus().isRunningStatus()) getStatus().resume();
             }
           }
+            //endregion
         }
+        //endregion
         else if (nextEvent.isErrorEvent())
+        //region 3
         {
           _log.info("Error event: " + nextEvent.sequence());
           success = processErrorEvent(curState, nextEvent);
         }
+        //endregion
         else
+        //region 3
         {
           //control event
           success = processSysEvent(curState, nextEvent);
           if (success)
+          //region 4
           {
 
               if (nextEvent.isCheckpointMessage())
@@ -829,15 +845,20 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
                   }
               }
           }
+            //endregion
         }
+          //endregion
       }
+      //endregion
       else
+      //region 2
       {
         curState.setEventsSeen(true);
 
     	//not a control event
         if (curState.getStateId().equals(StateId.EXPECT_EVENT_WINDOW) ||
             curState.getStateId().equals(StateId.REPLAY_DATA_EVENTS))
+        //region 3
         {
           SCN startScn = new SingleSourceSCN(nextEvent.physicalPartitionId(),
                                              nextEvent.sequence());
@@ -849,7 +870,9 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
             success = doCheckStartSource(curState, eventSrcId,new SchemaId(nextEvent.schemaId()));
           }
         }
+        //endregion
         else
+        //region 3
         {
           if (null != curState.getCurrentSource() &&
               !eventSrcId.equals(curState.getCurrentSource().getId()))
@@ -868,12 +891,15 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
           }
 
         }
+          //endregion
 
         if (success)
+        //region 3
         {
           //finally: process data event
           success = processDataEvent(curState, nextEvent);
           if (success)
+          //region 4
           {
 
         	hasQueuedEvents = true;
@@ -911,9 +937,13 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
               }
             }
           }
+            //endregion
         }
+          //endregion
       }
+        //endregion
       if (success)
+      //region 2
       {
           // check if threshold has been exceeded for control events;
           // DDSDBUS-1776
@@ -937,11 +967,14 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
               }
           }
       }
+        //endregion
 
     }
+      //endregion
 
 
     if (!_stopDispatch.get() && !checkForShutdownRequest())
+    //region 1
     {
       if (success)
       {
@@ -964,6 +997,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
 
       enqueueMessage(curState); //loop around -- let any other messages be processed
     }
+      //endregion
 
   }
 
