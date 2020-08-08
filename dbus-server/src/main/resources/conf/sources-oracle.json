@@ -1,7 +1,7 @@
 {
     "name" : "person",
     "id"  : 1,
-    "uri" : "jdbc:oracle:thin:person/person@devdb:1521:db",
+    "uri" : "jdbc:oracle:thin:rx/yxt20180303@112.74.57.217:31521:orcl",
 	"slowSourceQueryThreshold" : 2000,
 	"sources" :
 	[

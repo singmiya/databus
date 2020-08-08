@@ -59,7 +59,9 @@ then
 fi
 
 tbs=`cat $SRC_VIEW_DIR/tablespace`;
+# tablespace to upper case
 tbs_uc=`echo $tbs | tr '[A-Z]' '[a-z]'`
+# tablespace to lower case
 tbs_lc=`echo $tbs | tr '[a-z]' '[A-Z]'`
 
 
@@ -69,7 +71,9 @@ echo "SID : $sid"
 echo "DB : $DB"
 echo "TBS : $tbs_uc"
 
+# 设置累加序号 vercontrol_seq 和 SY\$SCN_SEQ
 ../fwk/schema/ddl_sqs.sh "$DB"
+# 创建必须的附加表
 ../fwk/schema/ddl_tab.sh "$DB" "$tbs_uc"
 
 for t in ${SRC_VIEW_DIR}/*\.tab; 
@@ -83,7 +87,9 @@ do
 __EOF__
 done
 
+# 添加主键约束并创建索引
 ../fwk/schema/ddl_con.sh "$DB" "$tbs_uc"
+# 添加索引
 ../fwk/schema/ddl_ind.sh "$DB" "$tbs_uc"
 
 for t in ${SRC_VIEW_DIR}/*\.tab; 

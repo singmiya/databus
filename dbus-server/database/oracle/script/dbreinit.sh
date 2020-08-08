@@ -1,4 +1,3 @@
-#!/bin/bash
 #
 #
 # Copyright 2013 LinkedIn Corp. All rights reserved
@@ -17,10 +16,14 @@
 # under the License.
 #
 #
+mkdir -p logs
 
-script_dir=`dirname $0`
-source $script_dir/setup.inc
+echo "cleanup old schema"
+(cd ../../database/oracle/bin && ./dropSchema.sh person/person@DB > ../../../databus2-example/database/logs/person_drop_user.log)
 
-main_class=com.linkedin.databus.util.DevRelayConfigGenerator
+echo "Setting up User and tablespace"
+(cd ../../database/oracle/bin && ./createUser.sh person person DB tbs_person /mnt/u001/oracle/data/DB > ../../../databus2-example/database/logs/person_cr_user.log)
 
-java -cp ${cp} ${main_class} $*
+echo "Setting up tables"
+(cd ../../database/oracle/bin && ./createSchema.sh person/person@DB ../../../databus2-example/database/person/ > ../../../databus2-example/database/logs/person_cr_schema.log)
+
