@@ -1742,9 +1742,17 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
                              long timeStamp, short srcId, byte[] schemaId, byte[] value,
                              boolean enableTracing, boolean isReplicated, DbusEventsStatisticsCollector statsCollector)
   {
-    DbusEventInfo eventInfo = new DbusEventInfo(null, 0L, pPartitionId, lPartitionId,
-                                                timeStamp, srcId, schemaId, value, enableTracing,
-                                                false);
+    return appendEvent(key, null, pPartitionId, lPartitionId, timeStamp, srcId, schemaId, value, enableTracing, isReplicated, statsCollector);
+  }
+
+  @Override
+  public boolean appendEvent(DbusEventKey key, DbusOpcode opcode, short pPartitionId,
+                             short lPartitionId, long timeStamp, short srcId, byte[] schemaId, byte[] value,
+                             boolean enableTracing, boolean isReplicated, DbusEventsStatisticsCollector statsCollector)
+  {
+    DbusEventInfo eventInfo = new DbusEventInfo(opcode, 0L, pPartitionId, lPartitionId,
+            timeStamp, srcId, schemaId, value, enableTracing,
+            false);
     eventInfo.setEventSerializationVersion(DbusEventFactory.DBUS_EVENT_V1);  // make this explicit
     // this single change causes 5 failures in TestDbusEventBufferMult:
     //eventInfo.setEventSerializationVersion(getEventSerializationVersion()); // use _eventFactory version for consistency

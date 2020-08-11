@@ -32,9 +32,12 @@ import java.sql.SQLException;
 import java.sql.SQLXML;
 import java.sql.Struct;
 import java.sql.Timestamp;
+import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
 
+import com.linkedin.databus.core.*;
+import com.linkedin.databus2.producers.ds.DbChangeV2Entry;
 import org.apache.avro.Schema;
 import org.apache.avro.Schema.Field;
 import org.apache.avro.Schema.Type;
@@ -46,9 +49,6 @@ import org.apache.avro.io.BinaryEncoder;
 import org.apache.avro.io.Encoder;
 import org.apache.log4j.Logger;
 
-import com.linkedin.databus.core.DbusEventBufferAppendable;
-import com.linkedin.databus.core.DbusEventKey;
-import com.linkedin.databus.core.UnsupportedKeyException;
 import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
 import com.linkedin.databus2.producers.EventCreationException;
 import com.linkedin.databus2.producers.PartitionFunction;
@@ -175,6 +175,36 @@ implements EventFactory
     return serializedValue;
   }
 
+  protected byte[] serializeEvent(DbChangeV2Entry changeEntry)
+          throws EventCreationException, UnsupportedKeyException
+  {
+    // Serialize the row
+    byte[] serializedValue;
+    List<GenericRecord> records = Arrays.asList(changeEntry.getRecord(), changeEntry.getBeforedRecord());
+    Schema schema = changeEntry.getSchema();
+    try
+    {
+      ByteArrayOutputStream bos = new ByteArrayOutputStream();
+      bos.write(DbusConstants.ARR_PREFIX);
+      Encoder encoder = new BinaryEncoder(bos);
+      GenericDatumWriter<List<GenericRecord>> writer = new GenericDatumWriter<List<GenericRecord>>(schema);
+      writer.write(records, encoder);
+      serializedValue = bos.toByteArray();
+    }
+    catch(IOException ex)
+    {
+      throw new EventCreationException("Failed to serialize the Avro GenericRecord", ex);
+    }
+    catch(RuntimeException ex)
+    {
+      // Avro likes to throw RuntimeExceptions instead of checked exceptions when serialization fails.
+      _log.error("Exception for record: " + records + " with schema: " + schema.getFullName());
+      throw new EventCreationException("Failed to serialize the Avro GenericRecord", ex);
+    }
+
+    return serializedValue;
+  }
+
   /*
    * @see com.linkedin.databus2.monitors.db.EventFactory#createEvent(long, long, java.sql.ResultSet)
    */
@@ -187,12 +217,17 @@ implements EventFactory
                                    DbusEventsStatisticsCollector dbusEventsStatisticsCollector)
   throws SQLException, EventCreationException, UnsupportedKeyException
   {
-    // Serialize the row into an Avro GenericRecord
-    GenericRecord record = buildGenericRecord(row);
     boolean isReplicated = isReplicatedEvent(row);
+    // 获取操作类型
+    Object opCode = row.getObject("OP_CODE");
+    if (null == opCode) {
+      GenericRecord record = buildGenericRecord(row);
+      return createAndAppendEvent(scn, timestamp, record, row, eventBuffer, enableTracing,
+              isReplicated, dbusEventsStatisticsCollector);
+    }
+    DbChangeV2Entry entry = buildGenericRecord(row, scn, timestamp, isReplicated);
 
-    return createAndAppendEvent(scn, timestamp, record, row, eventBuffer, enableTracing,
-                                isReplicated, dbusEventsStatisticsCollector);
+    return createAndAppendEvent(timestamp, entry, eventBuffer, enableTracing, isReplicated, dbusEventsStatisticsCollector);
   }
 
   /**
@@ -235,6 +270,28 @@ implements EventFactory
   {
     return createAndAppendEvent(scn, timestamp, record, null, eventBuffer, enableTracing,
                                 false, dbusEventsStatisticsCollector);
+  }
+
+  public long createAndAppendEvent(long timestamp,
+                                   DbChangeV2Entry entry,
+                                   DbusEventBufferAppendable eventBuffer,
+                                   boolean enableTracing,
+                                   boolean isReplicated,
+                                   DbusEventsStatisticsCollector dbusEventsStatisticsCollector)
+          throws EventCreationException, UnsupportedKeyException
+  {
+    byte[] serializedValue = serializeEvent(entry);
+
+    // Append the event to the databus event buffer
+    //DbusEventKey eventKey = new DbusEventKey(record.get("key"));
+    DbusEventKey eventKey = new DbusEventKey(entry.getRecord().get(keyColumnName));
+    //byte[] schmaId = SchemaHelper.getSchemaId();
+
+    short lPartitionId = _partitionFunction.getPartition(eventKey);
+    //short pPartitionId = PhysicalSourceConfig.DEFAULT_PHYSICAL_PARTITION.shortValue();
+    eventBuffer.appendEvent(eventKey, entry.getOpCode(), _pSourceId, lPartitionId, timestamp * 1000000, _sourceId,
+            _schemaId, serializedValue, enableTracing, isReplicated, dbusEventsStatisticsCollector);
+    return serializedValue.length;
   }
 
   public long createAndAppendEvent(long scn,
@@ -318,6 +375,73 @@ implements EventFactory
 
     // Return the Avro record.
     return record;
+  }
+
+  protected DbChangeV2Entry buildGenericRecord(ResultSet rs, long scn, long timestamp, boolean isReplicated)
+          throws SQLException, EventCreationException
+  {
+    boolean traceEnabled = _log.isTraceEnabled();
+    if (traceEnabled)
+    {
+      _log.trace("--- New Record ---");
+    }
+
+    // Initialize a new GenericData.Record from the event schema
+    GenericRecord recordBefore = new GenericData.Record(_eventSchema);
+    GenericRecord recordAfter = new GenericData.Record(_eventSchema);
+
+    // Iterate over the array of fields defined in the Avro schema
+    List<Field> fields = _eventSchema.getFields();
+
+    for (Field field : fields)
+    {
+      // Get the Avro field type information
+      String schemaFieldName = field.name();
+      // This is just field.schema() if field is not a union; but if it IS one,
+      // this is the schema of the first non-null type within the union:
+      Schema fieldSchema = SchemaHelper.unwindUnionSchema(field);
+      Type avroFieldType = fieldSchema.getType();
+
+      if (avroFieldType == Type.ARRAY)
+      {
+        // Process as an array.  Note that we're encoding to Avro's internal representation rather
+        // than to Avro binary format, which is what allows us to directly encode one of the union's
+        // inner types (here as well as in put()) instead of wrapping the inner type in a union.
+        // (Avro's binary encoding for unions includes an additional long index value before the
+        // encoding of the selected inner type.)
+        // TODO 暂未实现
+        //putArray(record, schemaFieldName, fieldSchema, getJdbcArray(rs, fieldSchema));
+      }
+      else
+      {
+        String databaseFieldName = SchemaHelper.getMetaField(field, "dbFieldName");
+        try
+        {
+          Object databaseFieldValue = rs.getObject(databaseFieldName);
+          Object databaseFieldValue_1 = rs.getObject(databaseFieldName + "_1");
+          put(recordAfter, field, databaseFieldValue);
+          put(recordBefore, field, databaseFieldValue_1);
+        }
+        catch (SQLException ex)
+        {
+          _log.error("Failed to read column (" + databaseFieldName + ") for source (" + _sourceId + ")");
+          throw ex;
+        }
+      }
+    }
+
+    // Return the Avro record.
+    int opCode = rs.getInt("OP_CODE");
+
+    Schema arraySchema = Schema.createArray(_eventSchema);
+    return new DbChangeV2Entry(scn,
+            timestamp,
+            recordBefore,
+            recordAfter,
+            DbusOpcode.DELETE.ordinal() == opCode ? DbusOpcode.DELETE : DbusOpcode.UPSERT,
+            isReplicated,
+            arraySchema,
+            null);
   }
 
   private static Array getJdbcArray(ResultSet rs, Schema schema)

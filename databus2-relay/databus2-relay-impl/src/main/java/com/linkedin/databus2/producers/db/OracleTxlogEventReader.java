@@ -31,6 +31,7 @@ import java.util.Map;
 
 import javax.sql.DataSource;
 
+import com.linkedin.databus2.producers.ds.DbChangeV2Entry;
 import org.apache.log4j.Logger;
 
 import com.linkedin.databus.core.DbusEventBufferAppendable;
@@ -72,6 +73,8 @@ public class OracleTxlogEventReader
   private final Map<Short, String> _eventQueriesBySource;
   private final Map<Short, String> _eventChunkedScnQueriesBySource;
   private final Map<Short, String> _eventChunkedTxnQueriesBySource;
+  // 缓存删除临时表中旧数据的sql
+  private final Map<Short, String> _eventDeleteTempBySource;
 
   private PreparedStatement _txnChunkJumpScnStmt;
 
@@ -172,6 +175,14 @@ public class OracleTxlogEventReader
       _log.info("Generated Chunked Scn events query. source: " + sourceInfo + " ; chunkScnEventQuery: " + eventQuery);
       _eventChunkedScnQueriesBySource.put(sourceInfo.getSourceId(), eventQuery);
     }
+
+      _eventDeleteTempBySource = new HashMap<Short, String>();
+      for(OracleTriggerMonitoredSourceInfo sourceInfo : sources)
+      {
+          String eventQuery = generateDelete(sourceInfo, _selectSchema);
+          _log.info("Generated delete events. source: " + sourceInfo + " ; delete event: " + eventQuery);
+          _eventDeleteTempBySource.put(sourceInfo.getSourceId(), eventQuery);
+      }
   }
 
   @Override
@@ -236,6 +247,7 @@ public class OracleTxlogEventReader
        *
        */
       if(sinceSCN <= 0)
+      //region 1
       {
         _catchupTargetMaxScn = sinceSCN = getMaxTxlogSCN(_eventSelectConnection);
         _log.debug("sinceSCN was <= 0. Overriding with the current max SCN=" + sinceSCN);
@@ -251,6 +263,7 @@ public class OracleTxlogEventReader
     	_catchupTargetMaxScn = getMaxTxlogSCN(_eventSelectConnection);
         _log.debug("catchupTargetMaxScn was <= 0. Overriding with the current max SCN=" + _catchupTargetMaxScn);
       }
+        //endregion
 
       if (_catchupTargetMaxScn <= 0)
     	  _inChunkingMode = false;
@@ -260,6 +273,7 @@ public class OracleTxlogEventReader
 
       long endOfPeriodScn = EventReaderSummary.NO_EVENTS_SCN;
       for(OracleTriggerMonitoredSourceInfo source : _sources)
+      //region 1
       {
         if(filteredSources.contains(source))
         {
@@ -292,6 +306,7 @@ public class OracleTxlogEventReader
           source.getStatisticsBean().addEmptyEventCycle();
         }
       }
+        //endregion
 
       _lastSeenEOP = Math.max(_lastSeenEOP, Math.max(endOfPeriodScn, sinceSCN));
 
@@ -300,6 +315,7 @@ public class OracleTxlogEventReader
       // in the txlog table.
       long curtime = System.currentTimeMillis();
       if(endOfPeriodScn == EventReaderSummary.NO_EVENTS_SCN)
+      //region 1
       {
 
           // If in SCN Chunking mode, its possible to get empty batches for a SCN range,
@@ -346,7 +362,9 @@ public class OracleTxlogEventReader
         	  eventBufferNeedsRollback = true;
           }
       }
+      //endregion
       else
+      //region 1
       {
         //we have appended some events; and a new end of period has been found
         _lastquerytime = curtime;
@@ -359,9 +377,11 @@ public class OracleTxlogEventReader
         //no need to roll back
         eventBufferNeedsRollback = false;
       }
+        //endregion
 
       //save endOfPeriodScn if new one has been discovered
       if (endOfPeriodScn != EventReaderSummary.NO_EVENTS_SCN)
+      //region 1
       {
         if (null != _maxScnWriter && (endOfPeriodScn != sinceSCN))
         {
@@ -373,6 +393,7 @@ public class OracleTxlogEventReader
           source.getStatisticsBean().addTimeOfLastDBAccess(System.currentTimeMillis());
         }
       }
+        //endregion
       long cycleEndTS = System.currentTimeMillis();
 
       //check if we should refresh _catchupTargetMaxScn
@@ -407,6 +428,7 @@ public class OracleTxlogEventReader
       return summary;
     }
     catch(SQLException ex)
+    //region 1
     {
         try {
        	    DBHelper.rollback(_eventSelectConnection);
@@ -417,12 +439,16 @@ public class OracleTxlogEventReader
           handleExceptionInReadEvents(ex);
           throw new DatabusException(ex);
     }
+    //endregion
     catch(Exception e)
+    //region 1
     {
       handleExceptionInReadEvents(e);
       throw new DatabusException(e);
     }
+    //endregion
     finally
+    //region 1
     {
       // If events were not processed successfully then eventBufferNeedsRollback will be true.
       // If that happens, rollback the event buffer.
@@ -435,6 +461,7 @@ public class OracleTxlogEventReader
         _eventBuffer.rollbackEvents();
       }
     }
+      //endregion
   }
 
   private void handleExceptionInReadEvents(Exception e)
@@ -452,6 +479,21 @@ public class OracleTxlogEventReader
         //update maxDBScn here
         source.getStatisticsBean().addError();
       }
+  }
+
+  private PreparedStatement createDeletedStatement(Connection conn,
+                                                   OracleTriggerMonitoredSourceInfo source,
+                                                   long sinceScn) throws SQLException
+  {
+      boolean debugEnabled = _log.isDebugEnabled();
+      String eventQuery = _eventDeleteTempBySource.get(source.getSourceId());
+      ChunkingType type = _chunkingType;
+
+      if (debugEnabled) _log.debug("source[" + source.getEventView() + "]: " + eventQuery + " ; sinceScn=" + sinceScn);
+
+      PreparedStatement pStmt = conn.prepareStatement(eventQuery);
+      pStmt.setLong(1, sinceScn);
+      return pStmt;
   }
 
   private PreparedStatement createQueryStatement(Connection conn,
@@ -521,6 +563,7 @@ public class OracleTxlogEventReader
 	_inChunkingMode = _inChunkingMode || useChunking;
 
     PreparedStatement pstmt = null;
+    PreparedStatement pstmtd = null;
     ResultSet rs = null;
     long endOfPeriodSCN = EventReaderSummary.NO_EVENTS_SCN;
 
@@ -533,6 +576,7 @@ public class OracleTxlogEventReader
       pstmt = createQueryStatement(con, source, sinceScn, currentFetchSize, useChunking);
 
       long t = System.currentTimeMillis();
+      // 查询数据
       rs = pstmt.executeQuery();
       long queryExecTime = System.currentTimeMillis() - t;
       long totalEventSize = 0;
@@ -553,6 +597,14 @@ public class OracleTxlogEventReader
                                                                   _eventBuffer,
                                                                   _enableTracing,
                                                                   _relayInboundStatsCollector);
+        // 删除临时表中旧数据
+        Integer txn = rs.getInt("TXN");
+        if (null != txn) {
+          pstmtd = createDeletedStatement(con, source, txn);
+          // 删除旧数据
+          pstmtd.execute();
+        }
+
         totalEventSerializeTime += System.currentTimeMillis()-tsStart;
         totalEventSize += eventSize;
         endOfPeriodSCN = Math.max(endOfPeriodSCN, scn);
@@ -584,6 +636,7 @@ public class OracleTxlogEventReader
     finally
     {
       DBHelper.close(rs, pstmt, null);
+      DBHelper.close(rs, pstmtd, null);
     }
   }
 
@@ -636,7 +689,11 @@ public class OracleTxlogEventReader
 
     sql.append(" tx.scn scn, tx.ts event_timestamp, src.* ");
     sql.append("from ");
-    sql.append(selectSchema + "sy$").append(sourceInfo.getEventView()).append(" src, " + selectSchema + "sy$txlog tx ");
+    //(select * from (select rt.*, rtt.* from rx.sy$rft_tag rt left join rx.sy$rft_tag_temp rtt on rtt.TXN_1 = rt.TXN))
+    sql.append("(select * from (select rt.*, rtt.* from ");
+    sql.append(selectSchema + "sy$").append(sourceInfo.getEventView()).append(" rt left join ");
+    sql.append(selectSchema + "sy$").append(sourceInfo.getEventView()).append("_temp rtt on rtt.TXN_1 = rt.TXN))");
+    sql.append(" src, " + selectSchema + "sy$txlog tx ");
     sql.append("where ");
     sql.append("src.txn=tx.txn and ");
     sql.append("tx.scn > ? and tx.scn < 9999999999999999999999999999");
@@ -662,7 +719,11 @@ public class OracleTxlogEventReader
 
     sql.append(selectSchema + "sync_core.getScn(tx.scn, tx.ora_rowscn) scn, tx.ts event_timestamp, src.* ");
     sql.append("from ");
-    sql.append(selectSchema + "sy$").append(sourceInfo.getEventView()).append(" src, " + selectSchema + "sy$txlog tx ");
+    //(select * from (select rt.*, rtt.* from rx.sy$rft_tag rt left join rx.sy$rft_tag_temp rtt on rtt.TXN_1 = rt.TXN))
+    sql.append("(select * from (select rt.*, rtt.* from ");
+    sql.append(selectSchema + "sy$").append(sourceInfo.getEventView()).append(" rt left join ");
+    sql.append(selectSchema + "sy$").append(sourceInfo.getEventView()).append("_temp rtt on rtt.TXN_1 = rt.TXN))");
+    sql.append(" src, " + selectSchema + "sy$txlog tx ");
     sql.append("where ");
     sql.append("src.txn=tx.txn and ");
     sql.append("tx.scn > ? and ");
@@ -692,7 +753,12 @@ public class OracleTxlogEventReader
     StringBuilder sql = new StringBuilder();
 
     sql.append("SELECT scn, event_timestamp, src.* ");
-    sql.append("FROM ").append(selectSchema).append("sy$").append(sourceInfo.getEventView()).append(" src, ");
+    sql.append("FROM ");
+    //(select * from (select rt.*, rtt.* from rx.sy$rft_tag rt left join rx.sy$rft_tag_temp rtt on rtt.TXN_1 = rt.TXN))
+    sql.append("(select * from (select rt.*, rtt.* from ");
+    sql.append(selectSchema + "sy$").append(sourceInfo.getEventView()).append(" rt left join ");
+    sql.append(selectSchema + "sy$").append(sourceInfo.getEventView()).append("_temp rtt on rtt.TXN_1 = rt.TXN))");
+    sql.append(" src, ");
     sql.append("( SELECT ");
     String hints = sourceInfo.getEventTxnChunkedQueryHints();
     sql.append(hints).append(" "); // hint for oracle
@@ -715,12 +781,21 @@ public class OracleTxlogEventReader
     String hints = sourceInfo.getEventScnChunkedQueryHints();
     sql.append(hints).append(" "); // hint for oracle
     sql.append("sync_core.getScn(tx.scn, tx.ora_rowscn) scn, tx.ts event_timestamp, src.* ");
-    sql.append("FROM sy$").append(sourceInfo.getEventView()).append(" src, sy$txlog tx ");
+    sql.append("FROM ");
+    //(select * from (select rt.*, rtt.* from rx.sy$rft_tag rt left join rx.sy$rft_tag_temp rtt on rtt.TXN_1 = rt.TXN))
+    sql.append("(select * from (select rt.*, rtt.* from ");
+    sql.append("sy$").append(sourceInfo.getEventView()).append(" rt left join ");
+    sql.append("sy$").append(sourceInfo.getEventView()).append("_temp rtt on rtt.TXN_1 = rt.TXN))").append(" src, sy$txlog tx ");
     sql.append("WHERE src.txn=tx.txn AND tx.scn > ? AND tx.ora_rowscn > ? AND ");
     sql.append(" tx.ora_rowscn <= ?");
 
     return sql.toString();
   }
+
+    static String generateDelete(OracleTriggerMonitoredSourceInfo sourceInfo, String selectSchema)
+    {
+        return String.format("delete from %ssy$%s_temp where TXN_1 = ?", selectSchema, sourceInfo.getEventView());
+    }
 
 
   private long getMaxScnSkippedForTxnChunked(Connection db, long currScn, long txnsPerChunk)

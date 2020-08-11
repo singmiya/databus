@@ -115,6 +115,11 @@ public interface DbusEventBufferAppendable
           byte[] value, boolean enableTracing, boolean isReplicated,
           DbusEventsStatisticsCollector statsCollector);
 
+  boolean appendEvent(DbusEventKey key, DbusOpcode opcode, short pPartitionId,
+                      short lPartitionId, long timeStamp, short srcId, byte[] schemaId,
+                      byte[] value, boolean enableTracing, boolean isReplicated,
+                      DbusEventsStatisticsCollector statsCollector);
+
   /**
    * Append a single event.
    * Safe only for a single-writer thread.
