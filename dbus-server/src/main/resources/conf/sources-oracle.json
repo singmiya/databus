@@ -1,14 +1,21 @@
 {
-    "name" : "person",
+    "name" : "rx",
     "id"  : 1,
-    "uri" : "jdbc:oracle:thin:rx/yxt20180303@112.74.57.217:31521:orcl",
+    "uri" : "jdbc:oracle:thin:rx/yxt20180303@192.168.88.152:1521:orcl",
 	"slowSourceQueryThreshold" : 2000,
 	"sources" :
 	[
-		{"id" : 101, 
-		 "name" : "com.linkedin.events.example.person.Person",
-		 "uri": "person.person", 
-		 "partitionFunction" : "constant:1"
+		{
+			"id" : 102,
+			"name" : "com.ronfton.dbmonitor.service.account.entity.AccountModifyMessage",
+			"uri": "rx.acc_account",
+			"partitionFunction" : "constant:1"
+		},
+		{
+			"id" : 103,
+			"name" : "com.ronfton.dbmonitor.service.identity.entity.IdentityModifyMessage",
+			"uri": "rx.rft_identity",
+			"partitionFunction" : "constant:1"
 		}
 	]
 }

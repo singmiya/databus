@@ -1,0 +1,32 @@
+{
+  "name" : "RftIdentity_V1",
+  "doc" : "Avro schema for sy$rft_identity",
+  "type" : "record",
+  "meta" : "dbFieldName=sy$rft_identity;pk=key;",
+  "namespace" : "com.ronfton.dbmonitor.service.identity.entity",
+  "fields" : [ {
+    "name" : "txn",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=TXN;dbFieldPosition=0;"
+  }, {
+    "name" : "key",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=KEY;dbFieldPosition=1;"
+  }, {
+    "name" : "stuType",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=STUTYPE;dbFieldPosition=2;"
+  }, {
+    "name" : "sno",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=SNO;dbFieldPosition=3;"
+  }, {
+    "name" : "status",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=STATUS;dbFieldPosition=4;"
+  }, {
+    "name" : "delStatus",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=DELSTATUS;dbFieldPosition=5;"
+  }]
+}

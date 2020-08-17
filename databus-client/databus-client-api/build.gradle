@@ -1,4 +1,5 @@
 apply plugin: 'java'
+sourceCompatibility = 1.8
 
 // The metrics-core stuff from codahale is split across 2 or 3 locations:  the local extensions for
 // aggregation (MergeableExponentiallyDecayingReservoir) in :metrics-histograms:metrics-core-impl,

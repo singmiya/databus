@@ -1,4 +1,5 @@
 apply plugin: 'java'
+sourceCompatibility = 1.8
 
 dependencies {
   compile project(':databus-bootstrap-server:databus-bootstrap-server-impl')

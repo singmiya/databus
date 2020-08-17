@@ -1,8 +1,7 @@
 package com.ronfton.dbus.client;
 
 import com.linkedin.databus.client.DatabusHttpClientImpl;
-import com.ronfton.dbus.client.consumer.PersonConsumer;
-import com.ronfton.dbus.client.consumer.RoleConsumer;
+import com.ronfton.dbus.client.consumer.ConsumerHandler;
 
 import java.rmi.registry.LocateRegistry;
 
@@ -13,15 +12,21 @@ import java.rmi.registry.LocateRegistry;
  */
 public class DbusClient
 {
-    static final String PERSON_SOURCE = "com.linkedin.events.example.or_test.Person";
-    static final String ROLE_SOURCE = "com.linkedin.events.example.or_test.Role";
+    private static final String SCAN_PACKAGE = "com.ronfton.dbus.client.consumer";
 
     public static void main(String[] args) throws Exception
     {
-        DatabusHttpClientImpl.Config configBuilder = new DatabusHttpClientImpl.Config();
 
-        // 配合文件查找根路径
-        String classPath = configBuilder.getClass().getResource("/").getPath();
+        try
+        {
+            // 扫描Consumer
+            ConsumerHandler.scanConsumer(SCAN_PACKAGE);
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.exit(-1);
+        }
+
+        DatabusHttpClientImpl.Config configBuilder = new DatabusHttpClientImpl.Config();
 
         // 设置启动参数
         String log4jFileOption = String.format("-l%s", DbusClient.class.getResource("/conf/client_log4j.properties").getPath());
@@ -29,13 +34,7 @@ public class DbusClient
         String[] theArgs = {log4jFileOption, configFileOption};
 
         //Try to connect to a relay on localhost
-        configBuilder.getRuntime().getRelay("1").setHost("localhost");
-        configBuilder.getRuntime().getRelay("1").setPort(11115);
-        configBuilder.getRuntime().getRelay("1").setSources(PERSON_SOURCE);
-
-        configBuilder.getRuntime().getRelay("2").setHost("localhost");
-        configBuilder.getRuntime().getRelay("2").setPort(11115);
-        configBuilder.getRuntime().getRelay("2").setSources(ROLE_SOURCE);
+        ConsumerHandler.connectRelay(configBuilder.getRuntime());
 
         // checkpoints根目录
         String checkpointsDir = DbusClient.class.getResource("/client_checkpoints").getPath();
@@ -45,13 +44,8 @@ public class DbusClient
         LocateRegistry.createRegistry(client.getContainerStaticConfig().getJmx().getRmiRegistryPort());
 
         //register callbacks
-        PersonConsumer personConsumer = new PersonConsumer();
-        client.registerDatabusStreamListener(personConsumer, null, PERSON_SOURCE);
-        client.registerDatabusBootstrapListener(personConsumer, null, PERSON_SOURCE);
+        ConsumerHandler.registerConsumers(client);
 
-        RoleConsumer roleConsumer = new RoleConsumer();
-        client.registerDatabusStreamListener(roleConsumer, null, ROLE_SOURCE);
-        client.registerDatabusBootstrapListener(roleConsumer, null, ROLE_SOURCE);
         //fire off the Databus client
         client.startAndBlock();
     }

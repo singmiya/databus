@@ -1,4 +1,5 @@
 apply plugin: 'java'
+sourceCompatibility = 1.8
 
 test.workingDir = "${project.rootDir}"
 test.dependsOn(':db:databus2-bootstrap:reinit')
