@@ -36,16 +36,18 @@ public class DbusServer extends DatabusRelayMain
             System.exit(0);
         }
         // 配合文件查找根路径
-        String sourceName = String.format("/conf/sources-%s.json", args[0]);
+        String sourceName = String.format("conf/sources-%s.json", args[0]);
 
-        String sourcePath = DbusServer.class.getResource(sourceName).getPath();
-        cli.setDefaultPhysicalSrcConfigFiles(sourcePath);
+        //String sourcePath = DbusServer.class.getResource(sourceName).getPath();
+        cli.setDefaultPhysicalSrcConfigFiles(sourceName);
 
 
         // 设置启动参数
-        String log4jFileOption = String.format("-l%s", DbusServer.class.getResource("/conf/relay_log4j.properties").getPath());
-        String configFileOptionName = String.format("/conf/relay_%s.properties", args[0]);
-        String configFileOption = String.format("-p%s", DbusServer.class.getResource(configFileOptionName).getPath());
+        //String log4jFileOption = String.format("-l%s", DbusServer.class.getResource("/conf/relay_log4j.properties").getPath());
+        String log4jFileOption = String.format("-l%s", "conf/relay_log4j.properties");
+        String configFileOptionName = String.format("conf/relay_%s.properties", args[0]);
+        //String configFileOption = String.format("-p%s", DbusServer.class.getResource(configFileOptionName).getPath());
+        String configFileOption = String.format("-p%s", configFileOptionName);
         String[] theArgs = {log4jFileOption, configFileOption};
         cli.processCommandLineArgs(theArgs);
         cli.parseRelayConfig();
@@ -54,7 +56,8 @@ public class DbusServer extends DatabusRelayMain
         HttpRelay.Config config = cli.getRelayConfigBuilder();
 
         // 定义监听字段的Avro schema文件
-        String schemaDir = DbusServer.class.getResource("/schemas_registry").getPath();
+        //String schemaDir = DbusServer.class.getResource("/schemas_registry").getPath();
+        String schemaDir = "schemas_registry";
         config.getSchemaRegistry().getFileSystem().setSchemaDir(schemaDir);
         HttpRelay.StaticConfig staticConfig = config.build();
 

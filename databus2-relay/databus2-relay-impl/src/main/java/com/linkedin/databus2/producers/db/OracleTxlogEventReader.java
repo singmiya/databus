@@ -597,12 +597,18 @@ public class OracleTxlogEventReader
                                                                   _eventBuffer,
                                                                   _enableTracing,
                                                                   _relayInboundStatsCollector);
-        // 删除临时表中旧数据
-        Integer txn = rs.getInt("TXN");
-        if (null != txn) {
-          pstmtd = createDeletedStatement(con, source, txn);
-          // 删除旧数据
-          pstmtd.execute();
+        try
+        {
+          // 删除临时表中旧数据
+          Integer txn = rs.getInt("TXN");
+          if (null != txn) {
+            pstmtd = createDeletedStatement(con, source, txn);
+            // 删除旧数据
+            pstmtd.execute();
+          }
+        } finally
+        {
+          DBHelper.close(rs, pstmtd, null);
         }
 
         totalEventSerializeTime += System.currentTimeMillis()-tsStart;
@@ -636,7 +642,6 @@ public class OracleTxlogEventReader
     finally
     {
       DBHelper.close(rs, pstmt, null);
-      DBHelper.close(rs, pstmtd, null);
     }
   }
 

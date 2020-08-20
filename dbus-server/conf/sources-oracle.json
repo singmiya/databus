@@ -1,0 +1,21 @@
+{
+    "name" : "rx",
+    "id"  : 1,
+    "uri" : "jdbc:oracle:thin:xxxx/xxxx@xxxx:1521:orcl",
+	"slowSourceQueryThreshold" : 2000,
+	"sources" :
+	[
+		{
+			"id" : 102,
+			"name" : "xxxxx",
+			"uri": "xx.xxx",
+			"partitionFunction" : "constant:1"
+		},
+		{
+			"id" : 103,
+			"name" : "xxxxx",
+			"uri": "xx.xxx",
+			"partitionFunction" : "constant:1"
+		}
+	]
+}

@@ -1,7 +1,7 @@
 {
     "name" : "or_test",
     "id"  : 1,
-    "uri" : "mysql://root%2FSomiya@127.0.0.1:3306/1/mysql-bin",
+    "uri" : "mysql://xx%2Fxxxx@127.0.0.1:3306/1/mysql-bin",
     "slowSourceQueryThreshold" : 2000,
     "sources" :
     [
